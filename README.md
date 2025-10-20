@@ -53,7 +53,7 @@ The goal at this stage is **not optimization**, but **validation of feasibility 
 ## Environment Notes
 
 - NumPy should remain **below version 2.0**. Higher versions may introduce conflicts with **ROS 2** or **Ultralytics** (this step is just if YOLO is being used), depending on the globally installed package set.
-- --- To instal YOL)V8n, refer to the public repo: https://github.com/Vom1124/venv_yolo.git
+- --- To install YOLOv8n, refer to the public repo: https://github.com/Vom1124/venv_yolo.git
 
 ---
 
