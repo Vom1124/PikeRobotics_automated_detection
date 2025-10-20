@@ -58,8 +58,6 @@ The goal at this stage is **not optimization**, but **validation of feasibility 
 
 ## TODO
 
-- [ ] Add setup and dependency installation script
-- [ ] Automate ROS bag replay with topic selection
 - [ ] Implement baseline thresholding-based counting
 - [ ] Integrate YOLO-based detection
 - [ ] Benchmark segmentation-based approaches
