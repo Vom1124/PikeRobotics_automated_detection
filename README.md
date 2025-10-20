@@ -3,6 +3,7 @@
 Automated counting pipeline for internal evaluation of **bolts** and **secondary rubber seals** using **RGB-D sensor data** captured in ROS bag files.
 
 The system reprocesses recorded `.bag` files and applies multiple techniques for **object isolation and count estimation**, comparing classical and deep-learning-based approaches.
+. Convert the rosbag to compatible ROS version before replaying the recorded bag files. For example, .bag (ROS~1) to .db3 (ROS~2) file or vice versa as needed. 
 
 ---
 
