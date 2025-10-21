@@ -3,7 +3,11 @@
 Automated counting pipeline for internal evaluation of **bolts** and **secondary rubber seals** using **RGB-D sensor data** captured in ROS bag files.
 
 The system reprocesses recorded `.bag` files and applies multiple techniques for **object isolation and count estimation**, comparing classical and deep-learning-based approaches.
-#### Convert the rosbag to compatible ROS version before replaying the recorded bag files. For example, .bag (ROS 1) to .db3 (ROS 2) file or vice versa as needed. 
+#### Convert the rosbag to compatible ROS version before replaying the recorded bag files. For example, .bag (ROS 1) to .db3 (ROS 2) file or vice versa as needed. For converting in the ROS 2 Humble OS, do the following:
+    pip3 install rosbags && \
+    rosbags-convert --src <path_to_ros1_bag_file.bag> --dst <path_to_ros2_bag_directory>
+  #### Now, the converted folder should have the bag file comptabile with ROS 2 with .db3 extenson and its corresponding metadata.yaml file.
+  <u>Exception:<\u> Use the "fix_metadata.py" file in the main directory if the converted metadata.yaml file is not parsable by the ROS 2 environment.  
 
 ---
 
