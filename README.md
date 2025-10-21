@@ -33,10 +33,10 @@ All techniques listed below are **experimental** and may be added, removed, or m
 
 | Strategy Type       | Example Methods                                  | Status          |
 |---------------------|--------------------------------------------------|-----------------|
-| Detection           | YOLO / Ultralytics                              | Under evaluation |
-| Segmentation        | Instance or semantic segmentation models         | Under evaluation |
-| Thresholding        | Depth / color isolation                         | Under evaluation |
-| Morphological Ops   | Erosion / dilation for cleanup                  | Under evaluation |
+| Detection           | YOLO / template matching                              | Under evaluation |
+| Segmentation        | Classical global segmentation models         | Preliminary test done |
+| Thresholding        | Depth / color isolation                         | Preliminary test done |
+| Morphological Ops   | Erosion / dilation for cleanup                  | Preliminary test done |
 
 The goal at this stage is **not optimization**, but **validation of feasibility and consistency** across varying recording conditions. RGB and depth frames are extracted from **ROS bag replays**, processed offline, and analyzed to chose the best method based on the ground truth manual counting. 
 
