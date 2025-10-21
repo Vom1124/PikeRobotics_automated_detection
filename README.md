@@ -77,7 +77,7 @@ The goal at this stage is **not optimization**, but **validation of feasibility 
 - [ ] Integrate YOLO-based detection:\
       Is very robust if pre-trained with templates. Still need to access the integrability due to hardware/resource constraints for real-time execution.Might work for a specific ROI.
 
-- [ ] Record accuracy and consistency metrics
+- [ ] Record accuracy and consistency metrics:\
       In the process of validating different models for robustness across different dataset and be able to perform well under different lighting condiitons in real-time.
       
 - [ ] Develop the tracking algorithm for counting:\
