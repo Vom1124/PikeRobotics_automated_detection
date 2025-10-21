@@ -66,9 +66,16 @@ The goal at this stage is **not optimization**, but **validation of feasibility 
 ## TODO
 
 - [x] Implement baseline thresholding-based counting
+      A simple histogram based and/or global thresholding can not delineate the bolts/rims (skid plates) with the  background vessel.
+- [x] Benchmark segmentation-based approaches
+      All segmentation methods, including morphology applied segemtnation without learning-based model did not perform well.
+- [ ] Integrate template-matching detection
+      Planning to use a simple template matching using SSD/NCC functions and/or with feature/keypoint matching using ORB, SIFT, etc. Might be robust if pre-processing and post-processing is done correctly. Post-processing example: RANSAC to detect inliers after featrues are extracted and matched. Currently, in testing ...
 - [ ] Integrate YOLO-based detection
-- [ ] Benchmark segmentation-based approaches
+      Still need to access the integrability due to hardware/resource constraints for real-time execution.Might work for a specific ROI.
+
 - [ ] Record accuracy and consistency metrics
+      In the process of validating different models for robustness across different dataset and be able to perform well under different lighting condiitons in real-time.
 
 ---
 
