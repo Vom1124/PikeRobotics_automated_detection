@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 from scipy.optimize import differential_evolution
+from automated_counter import image_morph
+from automated_counter import p_tile_algo
 
 # Optional YOLO import
 try:
@@ -201,7 +203,8 @@ def yolo_detector(img, model_path="yolov8n.pt", conf=0.05):
 # -------------------------------------------------------------
 # --- 6. DE Saliency
 # -------------------------------------------------------------
-def DE_Detector(img, fitness_func, bounds=[(10,85),(10,55),(5,25),(5,85)], maxiter=10, popsize=10, max_regions=3, fitness_threshold=1e5):
+def DE_Detector(img, fitness_func, bounds=[(250,300),(200,250),(5,45),(5,45)],
+                maxiter=10, popsize=15, fitness_threshold=10):
     """
     Differential Evolution detector for multiple salient regions in an image (RGB or grayscale).
     
@@ -230,35 +233,35 @@ def DE_Detector(img, fitness_func, bounds=[(10,85),(10,55),(5,25),(5,85)], maxit
     if img is None:
         return 0, []
 
-    # Convert to grayscale for fitness evaluation
+    # Convert to grayscale
     if len(img.shape) == 3:
         gray_map = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     else:
         gray_map = img.copy()
 
-    bboxes = []
+    # Enhance image with segmentation + morphology
+    thresh_value = p_tile_algo.p_tile_thresh(gray_map, AOI=0.55)
+    ret, gray_map_seg = cv2.threshold(gray_map, thresh_value, np.max(gray_map), cv2.THRESH_TOZERO_INV)
+    gray_map = image_morph.image_morph_algo(gray_map_seg)
+    cv2.imshow("Gray Map (Morph + P-tile)", gray_map)
 
-    for _ in range(max_regions):
-        result = differential_evolution(fitness_func, bounds, args=(gray_map,), maxiter=maxiter, popsize=popsize)
-        best_fitness = result.fun
-        if best_fitness > fitness_threshold:
-            break
+    # Run DE once
+    result = differential_evolution(fitness_func, bounds, args=(gray_map,), maxiter=maxiter, popsize=popsize)
+    best_fitness = result.fun
 
+    # Only return bounding box if region is salient
+    if best_fitness < fitness_threshold:
         x, y, w, h = map(int, result.x)
         x = np.clip(x, 0, gray_map.shape[1]-1)
         y = np.clip(y, 0, gray_map.shape[0]-1)
         w = np.clip(w, 5, gray_map.shape[1]-x)
         h = np.clip(h, 5, gray_map.shape[0]-y)
+        return 1, [(x, y, w, h)]
+    else:
+        # No salient region found
+        return 0, []
 
-        bboxes.append((x, y, w, h))
-
-        # Mask out this region so next iteration ignores it
-        gray_map[y:y+h, x:x+w] = np.max(gray_map)
-
-    count = len(bboxes)
-    return count, bboxes
-
-def fitness(individual, img):
+def fitness_func(individual, img):
     """
     Fitness function for Differential Evolution.
     individual = [x, y, w, h]
@@ -273,14 +276,17 @@ def fitness(individual, img):
     if region.size == 0 or np.isnan(region).any():
         return 1e6
 
-    mean_d = np.mean(region)
-    std_d = np.std(region)
-    distance_penalty = 1e6 if mean_d > 0.5 else 0.0
-    proximity = 0.5 / (mean_d + 1e-6)
-    _lambda_ = 0.1
-    penalty = abs(w*h - 100) * _lambda_
+    # Evaluate saliency of region
+    mean_val = np.mean(region)
+    std_val = np.std(region)
 
-    total_score = proximity + std_d - penalty + distance_penalty
+    # Simple heuristics: higher contrast regions are more likely to be bolts
+    distance_penalty = 1e6 if mean_val > 5 else 0.0  # very bright regions penalized
+    proximity = 0.5 / (mean_val + 1e-6)
+    _lambda_ = 0.05
+    penalty = _lambda_ * max(0, abs(w*h - 200))
+
+    total_score = proximity + std_val - penalty + distance_penalty
     return total_score
 
 # -------------------------------------------------------------
@@ -310,6 +316,6 @@ def detect(img, method="threshold", **kwargs):
     elif method == "yolo":
         return yolo_detector(img, **kwargs)
     elif method == "DE":
-        return DE_Detector(img, **kwargs)
+        return DE_Detector(img, fitness_func, **kwargs)
     else:
         raise ValueError(f"Unknown detection method: {method}")

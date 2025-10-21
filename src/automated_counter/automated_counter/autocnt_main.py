@@ -118,7 +118,7 @@ else:
             self.bridge = CvBridge()
             
             # Flags: compressed or not
-            self.rgb_compressed   = True
+            self.rgb_compressed   = True  # Only compressed available
             self.ir_compressed    = True
             self.depth_compressed = False # No available topic for depth compressed
 
