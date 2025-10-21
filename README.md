@@ -15,19 +15,11 @@ The system reprocesses recorded `.bag` files and applies multiple techniques for
 
 ## Project Overview
 
-The goal is to determine the most reliable method for **counting small mechanical components** under varying background and lighting conditions. The following strategies are evaluated:
-
-| Technique Type      | Example Methods                                  |
-|---------------------|--------------------------------------------------|
-| Detection           | YOLO / Ultralytics                              |
-| Segmentation        | Instance or semantic segmentation models         |
-| Thresholding        | Color / depth-based isolation                    |
-| Morphological Ops   | Erosion / dilation for cleanup                   |
-
+The goal is to determine the most reliable method for **counting small mechanical components** under varying background and lighting conditions. 
 
 ---
 
-## Strategy Evaluation Status
+### Strategy Evaluation Status
 
 All techniques listed below are **experimental** and may be added, removed, or modified as results come in.
 
