@@ -2,7 +2,7 @@
 
 Automated counting pipeline for internal evaluation of **bolts** and **secondary rubber seals** using **RGB-D sensor data** captured in ROS bag files.
 
-<b> <u> Note: </b></u> This repo was generated adn tested for Ubuntu 22.04 running ROS 2 Humble OS. In order for this repo to be cloned and executed seamlessly, a fresh colcon build --symlink-install needs to be done within the workspace. If error still persists for sourcing, try deleting the install, log, and build files within the workpsace and re-build it to reflect the correct directory for sourcing. Re-building the workspace from scratch should resolve the sourcing errors. 
+<b> <u> Note: </b></u> This repo was generated and tested for Ubuntu 22.04 running ROS 2 Humble OS. In order for this repo to be cloned and executed seamlessly, a fresh colcon build --symlink-install needs to be done within the workspace. If error still persists for sourcing, try deleting the install, log, and build files within the workpsace and re-build it to reflect the correct directory for sourcing. Re-building the workspace from scratch should resolve the sourcing errors. 
 
 The system reprocesses recorded `.bag` files and applies multiple techniques for **object isolation and count estimation**, comparing classical and deep-learning-based approaches.
 #### Convert the rosbag to compatible ROS version before replaying the recorded bag files. For example, .bag (ROS 1) to .db3 (ROS 2) file or vice versa as needed. For converting in the ROS 2 Humble OS, do the following:
