@@ -7,7 +7,7 @@ The system reprocesses recorded `.bag` files and applies multiple techniques for
     pip3 install rosbags && \
     rosbags-convert --src <path_to_ros1_bag_file.bag> --dst <path_to_ros2_bag_directory>
   #### Now, the converted folder should have the bag file comptabile with ROS 2 with .db3 extenson and its corresponding metadata.yaml file.
-  <u>Exception:<\u> Use the "fix_metadata.py" file in the main directory if the converted metadata.yaml file is not parsable by the ROS 2 environment.  
+  <u>Exception:</u> Use the "fix_metadata.py" file in the main directory if the converted metadata.yaml file is not parsable by the ROS 2 environment.  
 
 ---
 
