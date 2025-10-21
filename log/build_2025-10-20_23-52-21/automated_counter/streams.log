@@ -1,0 +1,14 @@
+[1.019s] Invoking command in '/home/vom/ros2_ws/PikeRobotics_automated_counting/build/automated_counter': PYTHONPATH=/home/vom/ros2_ws/PikeRobotics_automated_counting/build/automated_counter/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/vom/ros2_ws/PikeRobotics_automated_counting/install/automated_counter/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/vom/ros2_ws/PikeRobotics_automated_counting/build/automated_counter/build --no-deps symlink_data
+[1.352s] running develop
+[1.580s] running egg_info
+[1.582s] creating automated_counter.egg-info
+[1.584s] writing manifest file 'automated_counter.egg-info/SOURCES.txt'
+[1.588s] writing manifest file 'automated_counter.egg-info/SOURCES.txt'
+[1.591s] running build_ext
+[1.594s] running symlink_data
+[1.594s] creating /home/vom/ros2_ws/PikeRobotics_automated_counting/install/automated_counter/share/ament_index
+[1.594s] creating /home/vom/ros2_ws/PikeRobotics_automated_counting/install/automated_counter/share/ament_index/resource_index
+[1.594s] creating /home/vom/ros2_ws/PikeRobotics_automated_counting/install/automated_counter/share/ament_index/resource_index/packages
+[1.595s] symbolically linking /home/vom/ros2_ws/PikeRobotics_automated_counting/build/automated_counter/resource/automated_counter -> /home/vom/ros2_ws/PikeRobotics_automated_counting/install/automated_counter/share/ament_index/resource_index/packages
+[1.595s] symbolically linking /home/vom/ros2_ws/PikeRobotics_automated_counting/build/automated_counter/package.xml -> /home/vom/ros2_ws/PikeRobotics_automated_counting/install/automated_counter/share/automated_counter
+[1.624s] Invoked command in '/home/vom/ros2_ws/PikeRobotics_automated_counting/build/automated_counter' returned '0': PYTHONPATH=/home/vom/ros2_ws/PikeRobotics_automated_counting/build/automated_counter/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/vom/ros2_ws/PikeRobotics_automated_counting/install/automated_counter/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/vom/ros2_ws/PikeRobotics_automated_counting/build/automated_counter/build --no-deps symlink_data

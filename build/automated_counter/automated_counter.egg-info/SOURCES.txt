@@ -1,0 +1,15 @@
+package.xml
+setup.cfg
+setup.py
+automated_counter/__init__.py
+automated_counter/autocnt_main.py
+automated_counter/detector.py
+automated_counter/rosbag_subscription_test.py
+automated_counter.egg-info/PKG-INFO
+automated_counter.egg-info/SOURCES.txt
+automated_counter.egg-info/dependency_links.txt
+automated_counter.egg-info/entry_points.txt
+automated_counter.egg-info/requires.txt
+automated_counter.egg-info/top_level.txt
+automated_counter.egg-info/zip-safe
+resource/automated_counter
