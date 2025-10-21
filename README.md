@@ -17,8 +17,6 @@ The system reprocesses recorded `.bag` files and applies multiple techniques for
 
 The goal is to determine the most reliable method for **counting small mechanical components** under varying background and lighting conditions. 
 
----
-
 ### Strategy Evaluation Status
 
 All techniques listed below are **experimental** and may be added, removed, or modified as results come in.
