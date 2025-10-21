@@ -63,19 +63,25 @@ The goal at this stage is **not optimization**, but **validation of feasibility 
 
 ---
 
-## TODO
+## TODO / Progress
 
-- [x] Implement baseline thresholding-based counting
+- [x] Implement baseline thresholding-based detection:\
       A simple histogram based and/or global thresholding can not delineate the bolts/rims (skid plates) with the  background vessel.
-- [x] Benchmark segmentation-based approaches
+      
+- [x] Benchmark segmentation-based approaches:\
       All segmentation methods, including morphology applied segemtnation without learning-based model did not perform well.
+      
 - [ ] Integrate template-matching detection:\
-              Planning to use a simple template matching using SSD/NCC functions and/or with feature/keypoint matching using ORB, SIFT, etc. Might be robust if pre-processing and post-processing is done correctly. Post-processing example: RANSAC to detect inliers after featrues are extracted and matched. Currently, in testing ...
-- [ ] Integrate YOLO-based detection
-      Still need to access the integrability due to hardware/resource constraints for real-time execution.Might work for a specific ROI.
+      A simple yet effective template matching using SSD/NCC functions and/or with feature/keypoint matching using ORB, SIFT, etc. Might be robust if pre-processing and post-processing is done correctly. Post-processing example: RANSAC to detect inliers after featrues are extracted and matched. Currently, in testing ...
+      
+- [ ] Integrate YOLO-based detection:\
+      Is very robust if pre-trained with templates. Still need to access the integrability due to hardware/resource constraints for real-time execution.Might work for a specific ROI.
 
 - [ ] Record accuracy and consistency metrics
       In the process of validating different models for robustness across different dataset and be able to perform well under different lighting condiitons in real-time.
+      
+- [ ] Develop the tracking algorithm for counting:\
+    This is final phase of this project to execute the counting/iding. Label detected features (bolts, skid plates, etc.) uniquely frame-to-frame. Can fuse odometry reading to assign unqiue labels so that the same detected feature is not counted more than once. 
 
 ---
 
