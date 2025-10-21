@@ -203,8 +203,8 @@ def yolo_detector(img, model_path="yolov8n.pt", conf=0.05):
 # -------------------------------------------------------------
 # --- 6. DE Saliency
 # -------------------------------------------------------------
-def DE_Detector(img, fitness_func, bounds=[(250,300),(200,250),(5,45),(5,45)],
-                maxiter=10, popsize=15, fitness_threshold=10):
+def DE_Detector(img, fitness_func, bounds=[(250,300),(200,250),(5,15),(5,15)],
+                maxiter=10, popsize=25, fitness_threshold=1e4):
     """
     Differential Evolution detector for multiple salient regions in an image (RGB or grayscale).
     
@@ -240,7 +240,7 @@ def DE_Detector(img, fitness_func, bounds=[(250,300),(200,250),(5,45),(5,45)],
         gray_map = img.copy()
 
     # Enhance image with segmentation + morphology
-    thresh_value = p_tile_algo.p_tile_thresh(gray_map, AOI=0.55)
+    thresh_value = p_tile_algo.p_tile_thresh(gray_map, AOI=0.35)
     ret, gray_map_seg = cv2.threshold(gray_map, thresh_value, np.max(gray_map), cv2.THRESH_TOZERO_INV)
     gray_map = image_morph.image_morph_algo(gray_map_seg)
     cv2.imshow("Gray Map (Morph + P-tile)", gray_map)
@@ -248,6 +248,7 @@ def DE_Detector(img, fitness_func, bounds=[(250,300),(200,250),(5,45),(5,45)],
     # Run DE once
     result = differential_evolution(fitness_func, bounds, args=(gray_map,), maxiter=maxiter, popsize=popsize)
     best_fitness = result.fun
+    print(result.fun)
 
     # Only return bounding box if region is salient
     if best_fitness < fitness_threshold:
@@ -282,8 +283,8 @@ def fitness_func(individual, img):
 
     # Simple heuristics: higher contrast regions are more likely to be bolts
     distance_penalty = 1e6 if mean_val > 5 else 0.0  # very bright regions penalized
-    proximity = 0.5 / (mean_val + 1e-6)
-    _lambda_ = 0.05
+    proximity = 1e3 / (mean_val + 1e-6)
+    _lambda_ = 1
     penalty = _lambda_ * max(0, abs(w*h - 200))
 
     total_score = proximity + std_val - penalty + distance_penalty
