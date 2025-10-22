@@ -26,6 +26,7 @@ All techniques listed below are **experimental** and may be added, removed, or m
 | Detection           | YOLO / template matching                              | Under evaluation |
 | Segmentation        | Classical global segmentation models         | Preliminary test done |
 | Thresholding        | Depth / color isolation                         | Preliminary test done |
+| Circle Detector using Hough Transform        | Depth / color isolation                         | Preliminary test done |
 | Morphological Ops   | Erosion / dilation for cleanup                  | Preliminary test done |
 
 The goal at this stage is **not optimization**, but **validation of feasibility and consistency** across varying recording conditions. RGB and depth frames are extracted from **ROS bag replays**, processed offline, and analyzed to chose the best method based on the ground truth manual counting. 
@@ -60,6 +61,9 @@ The goal at this stage is **not optimization**, but **validation of feasibility 
       
 - [x] Benchmark segmentation-based approaches:\
       All segmentation methods, including morphology applied segemtnation without learning-based model did not perform well.
+      
+- [x] Non-learnign based detectors:\
+      Implemented Hough Transform to detect the shape of the bolt. Not much success here...
       
 - [ ] Integrate template-matching detection:\
       A simple yet effective template matching using SSD/NCC functions and/or with feature/keypoint matching using ORB, SIFT, etc. Might be robust if pre-processing and post-processing is done correctly. Post-processing example: RANSAC to detect inliers after featrues are extracted and matched. Currently, in testing ...
