@@ -13,41 +13,58 @@ from automated_counter import detector
 # ==========================
 # CONFIGURATION
 # ==========================
-use_camera = True          # True = live ROS2, False = load from folder
-use_depth_only = False     # Reserved for future YOLO depth-only processing
+use_camera = False          # True = live ROS2, False = load from folder
+
+# H, W = rgb_frame.shape[:2]
+H, W = (480,640)
+roi_w, roi_h = 300, 250
+roi_x = (W - roi_w) // 2
+roi_y = (H - roi_h) // 2
+roi = (roi_x, roi_y, roi_w, roi_h)
+
 
 # Dataset paths
 path_1 = "/home/vom/ros2_ws/PikeRobotics_automated_counting/CPC"
 path_2 = "/home/vom/ros2_ws/PikeRobotics_automated_counting/SUNCOR"
 dataset_path_1 = "CPC_9"
-dataset_path_2 = "SUNCOR_9"
-use_path_1 = True  # Choose dataset
+dataset_path_2 = "SUNCOR_24"
+use_path_1 = False  # Choose dataset CPCHem or SUNCOR
 
 path, dataset_path = (path_1, dataset_path_1) if use_path_1 else (path_2, dataset_path_2)
 
 # Define video paths dynamically 
 #-- CPC Files 
-rgb_video_path = f"{path}/{dataset_path}/CPC_9__wombot_gen3proto_seal_cameras_realsense_color_image_raw_compressed.mp4" 
-ir_video_path = f"{path}/{dataset_path}/CPC_9__wombot_gen3proto_seal_cameras_realsense_infra1_image_rect_raw_compressed.mp4" 
-gray_video_path = f"{path}/{dataset_path}/CPC_9__wombot_gen3proto_seal_cameras_flexx_gray_image_raw_compressed.mp4" 
-depth_video_path = f"{path}/{dataset_path}/depth.mp4" 
+# rgb_video_path = f"{path}/{dataset_path}/CPC_9__wombot_gen3proto_seal_cameras_realsense_color_image_raw_compressed.mp4" 
+# ir_video_path = f"{path}/{dataset_path}/CPC_9__wombot_gen3proto_seal_cameras_realsense_infra1_image_rect_raw_compressed.mp4" 
+# gray_video_path = f"{path}/{dataset_path}/CPC_9__wombot_gen3proto_seal_cameras_flexx_gray_image_raw_compressed.mp4" 
+# depth_video_path = f"{path}/{dataset_path}/depth.mp4" 
 # #--SUNCOR Files #
-# rgb_video_path = f"{path}/{dataset_path}/SUNCOR_9_realsense_color_image_raw_compressed.mp4" # 
-# ir_video_path = f"{path}/{dataset_path}/SUNCOR_9_realsense_infra1_image_rect_raw_compressed.mp4" # 
-# gray_video_path = f"{path}/{dataset_path}/SUNCOR_9_flexx_gray_image_raw_compressed.mp4" # 
-# depth_video_path = f"{path}/{dataset_path}/depth.mp4" # 
+rgb_video_path = f"{path}/{dataset_path}/4_RealsenseColor.mp4" # 
+# ir_video_path = f"{path}/{dataset_path}/5_realsense_infra1_image_rect_raw_compressed.mp4" # 
+gray_video_path = f"{path}/{dataset_path}/5_RealsenseGray.mp4" # 
+depth_video_path = f"{path}/{dataset_path}/6_RealsenseDepth.mp4" # 
 # print("Using dataset:", path) # 
-# print("IR video path:", ir_video_path)
+# print("gray video path:", gray_video_path)
 
 
 # ==========================
 # MODE 1: VIDEO FILES
 # ==========================
-if not use_camera:
-    use_rgb = True
-    use_ir = True
+if not use_camera:    
+    #----Selecting the stream...
+    use_rgb = False
+    use_ir = False
     use_gray = True
     use_depth = False  # Enable if depth video exists
+
+    # ------------Video Recorder Configuration
+    record_output = True
+    output_dir = "Feature count recordings"
+    os.makedirs(output_dir, exist_ok=True)
+    # Define codec and VideoWriter
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    out_rgb = None
+    out_gray = None
 
     # Open videos
     rgb_cap   = cv2.VideoCapture(rgb_video_path)   if use_rgb else None
@@ -56,16 +73,16 @@ if not use_camera:
     depth_cap = cv2.VideoCapture(depth_video_path) if use_depth else None
 
     # Get FPS
-    rgb_fps   = rgb_cap.get(cv2.CAP_PROP_FPS)   if rgb_cap else 30
-    ir_fps    = ir_cap.get(cv2.CAP_PROP_FPS)    if ir_cap else 30
-    gray_fps  = gray_cap.get(cv2.CAP_PROP_FPS)  if gray_cap else 30
-    depth_fps = depth_cap.get(cv2.CAP_PROP_FPS) if depth_cap else 30
+    # rgb_fps   = rgb_cap.get(cv2.CAP_PROP_FPS)   if rgb_cap else 30
+    # ir_fps    = ir_cap.get(cv2.CAP_PROP_FPS)    if ir_cap else 30
+    # gray_fps  = gray_cap.get(cv2.CAP_PROP_FPS)  if gray_cap else 30
+    # depth_fps = depth_cap.get(cv2.CAP_PROP_FPS) if depth_cap else 30
 
     # Per-frame delays
-    rgb_delay   = int(1000 / rgb_fps)
-    ir_delay    = int(1000 / ir_fps)
-    gray_delay  = int(1000 / gray_fps)
-    depth_delay = int(1000 / depth_fps)
+    # rgb_delay   = int(1000 / rgb_fps) if rgb_cap else None
+    # ir_delay    = int(1000 / ir_fps) if ir_cap else None
+    # gray_delay  = int(1000 / gray_fps) if gray_cap else None
+    # depth_delay = int(1000 / depth_fps) if depth_cap else None
 
     # Check if videos opened
     if use_rgb and not rgb_cap.isOpened(): raise IOError(f"RGB video cannot be opened: {rgb_video_path}")
@@ -88,15 +105,88 @@ if not use_camera:
             print("End of one of the videos reached.")
             break
 
-        # Display videos
-        if use_rgb:   cv2.imshow("RGB Video", rgb_frame)
-        if use_ir:    cv2.imshow("IR Video", ir_frame)
-        if use_gray:  cv2.imshow("Gray Video", gray_frame)
-        if use_depth: cv2.imshow("Depth Video", depth_frame)
+        # Callbacks 
+        ############ RGB
+        if use_rgb:   
+            # ####################
+            # DETECTOR
+            #######################
+            count, bboxes = detector.detect(rgb_frame, method="template", method_type="cv", roi =roi)
+            cv2.putText(rgb_frame, f"Bolts: {count}", (10,60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+            for (x, y, w, h) in bboxes:
+                cv2.rectangle(rgb_frame, (x, y), (x+w, y+h), (0,0,255), 2)
+            
+            # Initialize video writer for RGB if not yet created
+            if record_output and out_rgb is None:
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                video_path_rgb = os.path.join(output_dir, f"timestamp_rgb_{timestamp}.avi")
+                h, w, _ = rgb_frame.shape
+                out_rgb = cv2.VideoWriter(video_path_rgb, fourcc, 10.0, (w, h))
 
-        max_delay = max(rgb_delay, ir_delay, gray_delay, depth_delay)
-        if cv2.waitKey(max_delay) & 0xFF == 27:  # ESC to quit
-            break
+            # Write frame
+            if record_output and out_rgb is not None:
+                out_rgb.write(rgb_frame)
+
+            # Display
+            cv2.imshow("RGB Video", rgb_frame)
+        
+        ############ IR
+        if use_ir:    
+            # ####################
+            # DETECTOR
+            #######################
+            count_ir, bboxes_ir = detector.detect(ir_frame, method="template", method_type="cv",  roi =roi)
+            print(roi)
+            cv2.putText(ir_frame, f"Bolts: {count_ir}", (10,60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+            for (x, y, w, h) in bboxes_ir:
+                cv2.rectangle(ir_frame, (x, y), (x+w, y+h), (0,0,255), 2)
+            cv2.imshow("IR Video", ir_frame)
+            
+        ############ Grayscale
+        if use_gray:  
+            # ####################
+            # DETECTOR
+            #######################
+            count_gray, bboxes_gray = detector.detect(gray_frame, method="template", method_type="cv",  roi =roi)
+            cv2.putText(gray_frame, f"Bolts: {count_gray}", (10,60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+            for (x, y, w, h) in bboxes_gray:
+                cv2.rectangle(gray_frame, (x, y), (x+w, y+h), (0,0,255), 2)
+                
+            # Initialize video writer for IR if not yet created
+            if record_output and out_gray is None:
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                video_path_gray = os.path.join(output_dir, f"timestamp_gray_{timestamp}.avi")
+                h, w = gray_frame.shape[:2]  # ignore channels
+                out_gray = cv2.VideoWriter(video_path_gray, fourcc, 10.0, (w, h), isColor=False)
+
+            # Write frame
+            if record_output and out_gray is not None:
+                # Ensure gray_frame is actually 2D before writing
+                if len(gray_frame.shape) == 3:
+                    gray_frame_to_write = cv2.cvtColor(gray_frame, cv2.COLOR_BGR2GRAY)
+                else:
+                    gray_frame_to_write = gray_frame
+                out_gray.write(gray_frame_to_write)
+            #display
+            cv2.imshow("Gray Video", gray_frame)
+            
+        ##########Depth
+        if use_depth: 
+            # ####################
+            # DETECTOR
+            #######################
+            count_depth, bboxes_depth = detector.detect(depth_frame, method="template", method_type="cv",  roi =roi)
+            cv2.putText(depth_frame, f"Bolts: {count_depth}", (10,60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+            
+            for (x, y, w, h) in bboxes_depth:
+                cv2.rectangle(depth_frame, (x, y), (x+w, y+h), (0,0,255), 2)
+            
+            cv2.imshow("Depth Video", depth_frame)
+
+        # max_delay = max(rgb_delay, ir_delay, gray_delay, depth_delay)
+        if cv2.waitKey(150) & 0xFF == ord("q"):  # ESC to quit
+            self.get_logger().info("Q pressed. Exiting...")
+            sys.exit()
 
     # Cleanup
     if use_rgb:   rgb_cap.release()
@@ -318,7 +408,7 @@ else:
                 # ####################
                 # DETECTOR
                 #######################
-                count, bboxes = detector.detect(self.rgb_img, method="DE")
+                count, bboxes = detector.detect(self.rgb_img, method="template", method_type="cv")
                 cv2.putText(img_bgr, f"Bolts: {count}", (10,60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
                 for (x, y, w, h) in bboxes:
                     cv2.rectangle(img_bgr, (x, y), (x+w, y+h), (0,0,255), 2)
@@ -342,10 +432,10 @@ else:
                 # ####################
                 # DETECTOR
                 #######################
-                # count_ir, bboxes_ir = detector.detect(self.ir_img, img_type="ir", method="auto")
-                # cv2.putText(img_bgr, f"Bolts: {count_ir}", (10,60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
-                # for (x, y, w, h) in bboxes_ir:
-                #     cv2.rectangle(img_bgr, (x, y), (x+w, y+h), (0,0,255), 2)
+                count_ir, bboxes_ir = detector.detect(self.ir_img, img_type="ir", method="template", method_type="cv")
+                cv2.putText(img_bgr, f"Bolts: {count_ir}", (10,60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+                for (x, y, w, h) in bboxes_ir:
+                    cv2.rectangle(img_bgr, (x, y), (x+w, y+h), (0,0,255), 2)
                 
                 cv2.putText(img_bgr, f"FPS: {fps:.2f}", (10,30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
                 cv2.imshow("IR Camera", img_bgr)
@@ -371,7 +461,7 @@ else:
                 # ####################
                 # DETECTOR
                 #######################
-                count_depth, bboxes_depth = detector.detect(self.depth_img, method="circle")
+                count_depth, bboxes_depth = detector.detect(self.depth_img, method="template", method_type="cv")
                 cv2.putText(img_bgr, f"FPS: {fps:.2f}", (10,30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
                 cv2.putText(img_bgr, f"Bolts: {count_depth}", (10,60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
 
