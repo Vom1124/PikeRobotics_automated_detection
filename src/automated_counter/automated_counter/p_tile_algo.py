@@ -20,13 +20,13 @@ import sys
 # # Load image and apply p-tile threshold
 # # -----------------------
 # current_directory = os.getcwd()
-# template_path = f"{current_directory}/SUNCOR/SUNCOR_24/template_rgb_enhanced.png"
+# template_path = f"{current_directory}/CPC/CPC_9/test.png"
 
 # test = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
-
-# thresh_value = p_tile_thresh(test, 0.6)  # Now this works
-# ret, test_seg = cv2.threshold(test, thresh_value, np.max(test), cv2.THRESH_TOZERO)
-
-# cv2.imshow("ptile", test_seg)
+# clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(3,3))
+# thresh_value = p_tile_thresh(test, 0.925)  # Now this works
+# ret, test_seg = cv2.threshold(test, thresh_value, np.max(test), cv2.THRESH_TOZERO_INV)
+# test_seg =(clahe.apply(test_seg))
+# cv2.imshow("ptileseg", test_seg)
 # cv2.waitKey(0)
 # cv2.destroyAllWindows()

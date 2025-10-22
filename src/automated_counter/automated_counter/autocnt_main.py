@@ -10,6 +10,8 @@ import sys
 
 from automated_counter import detector
 
+
+        
 # ==========================
 # CONFIGURATION
 # ==========================
@@ -17,7 +19,7 @@ use_camera = False          # True = live ROS2, False = load from folder
 
 # H, W = rgb_frame.shape[:2]
 H, W = (480,640)
-roi_w, roi_h = 300, 250
+roi_w, roi_h = 100, 100
 roi_x = (W - roi_w) // 2
 roi_y = (H - roi_h) // 2
 roi = (roi_x, roi_y, roi_w, roi_h)
@@ -28,21 +30,21 @@ path_1 = "/home/vom/ros2_ws/PikeRobotics_automated_counting/CPC"
 path_2 = "/home/vom/ros2_ws/PikeRobotics_automated_counting/SUNCOR"
 dataset_path_1 = "CPC_9"
 dataset_path_2 = "SUNCOR_24"
-use_path_1 = False  # Choose dataset CPCHem or SUNCOR
+use_path_1 = True  # Choose dataset CPCHem or SUNCOR
 
 path, dataset_path = (path_1, dataset_path_1) if use_path_1 else (path_2, dataset_path_2)
 
 # Define video paths dynamically 
 #-- CPC Files 
-# rgb_video_path = f"{path}/{dataset_path}/CPC_9__wombot_gen3proto_seal_cameras_realsense_color_image_raw_compressed.mp4" 
+rgb_video_path = f"{path}/{dataset_path}/CPC_9__wombot_gen3proto_seal_cameras_realsense_color_image_raw_compressed.mp4" 
 # ir_video_path = f"{path}/{dataset_path}/CPC_9__wombot_gen3proto_seal_cameras_realsense_infra1_image_rect_raw_compressed.mp4" 
 # gray_video_path = f"{path}/{dataset_path}/CPC_9__wombot_gen3proto_seal_cameras_flexx_gray_image_raw_compressed.mp4" 
 # depth_video_path = f"{path}/{dataset_path}/depth.mp4" 
 # #--SUNCOR Files #
-rgb_video_path = f"{path}/{dataset_path}/4_RealsenseColor.mp4" # 
+# rgb_video_path = f"{path}/{dataset_path}/4_RealsenseColor.mp4" # 
 # ir_video_path = f"{path}/{dataset_path}/5_realsense_infra1_image_rect_raw_compressed.mp4" # 
-gray_video_path = f"{path}/{dataset_path}/5_RealsenseGray.mp4" # 
-depth_video_path = f"{path}/{dataset_path}/6_RealsenseDepth.mp4" # 
+# gray_video_path = f"{path}/{dataset_path}/5_RealsenseGray.mp4" # 
+# depth_video_path = f"{path}/{dataset_path}/6_RealsenseDepth.mp4" # 
 # print("Using dataset:", path) # 
 # print("gray video path:", gray_video_path)
 
@@ -52,13 +54,13 @@ depth_video_path = f"{path}/{dataset_path}/6_RealsenseDepth.mp4" #
 # ==========================
 if not use_camera:    
     #----Selecting the stream...
-    use_rgb = False
+    use_rgb = True
     use_ir = False
-    use_gray = True
+    use_gray = False
     use_depth = False  # Enable if depth video exists
 
     # ------------Video Recorder Configuration
-    record_output = True
+    record_output = False
     output_dir = "Feature count recordings"
     os.makedirs(output_dir, exist_ok=True)
     # Define codec and VideoWriter
@@ -111,7 +113,7 @@ if not use_camera:
             # ####################
             # DETECTOR
             #######################
-            count, bboxes = detector.detect(rgb_frame, method="template", method_type="cv", roi =roi)
+            count, bboxes = detector.detect(rgb_frame, method="template", method_type="sift", roi =roi)
             cv2.putText(rgb_frame, f"Bolts: {count}", (10,60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
             for (x, y, w, h) in bboxes:
                 cv2.rectangle(rgb_frame, (x, y), (x+w, y+h), (0,0,255), 2)
@@ -184,7 +186,7 @@ if not use_camera:
             cv2.imshow("Depth Video", depth_frame)
 
         # max_delay = max(rgb_delay, ir_delay, gray_delay, depth_delay)
-        if cv2.waitKey(150) & 0xFF == ord("q"):  # ESC to quit
+        if cv2.waitKey(100) & 0xFF == ord("q"):  # ESC to quit
             self.get_logger().info("Q pressed. Exiting...")
             sys.exit()
 

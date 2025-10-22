@@ -16,6 +16,47 @@ except ImportError:
 
 current_directory = os.getcwd()
 
+
+
+#------------------------------------------------------
+# Getting the optimum Template scale for better match
+#------------------------------------------------------
+scale_factor = 0.8
+current_scale = 1.0
+best_val = -1
+def get_template_scale(img, template):
+    # Pyramid style downsampling the image to find best fit scale
+    while min(img.shape[:2]) >= template.shape[0:2]:
+        res = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, max_loc = cv2.minMaxLoc(res)
+        if max_val > best_val:
+            best_val = max_val
+            best_loc = max_loc
+            best_scale = current_scale
+        img = cv2.resize(img, (0,0), fx=scale_factor, fy=scale_factor)
+        current_scale *= scale_factor
+
+    best_val = -1
+    best_loc = None
+    best_scale = 1.0
+
+    scales = np.linspace(0.5, 1.5, 11)  # test 0.5x to 1.5x template
+    for scale in scales:
+        resized_template = cv2.resize(template, (0,0), fx=scale, fy=scale)
+        if resized_template.shape[0] > img.shape[0] or resized_template.shape[1] > img.shape[1]:
+            continue  # template too big
+        res = cv2.matchTemplate(img, resized_template, cv2.TM_CCOEFF_NORMED)
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+        if max_val > best_val:
+            best_val = max_val
+            best_loc = max_loc
+            best_scale = scale
+
+    # Use best_loc and best_scale to draw bounding box
+    x, y = best_loc
+    w, h = int(template.shape[1]*best_scale), int(template.shape[0]*best_scale)
+    bbox = (x, y, w, h)
+
 # ------------------------------
 # Crop ROI
 #-----------------------
@@ -49,8 +90,8 @@ def crop_roi(img, roi, shift_up=0, shift_left=0):
 # -----------------------------
 bolt_count = 0
 last_detect_time = 0
-cooldown_period = 1.5    # seconds to ignore duplicate bolts
-min_frames = 2         # minimum consecutive frames a bolt must appear
+cooldown_period = 2.0   # seconds to ignore duplicate bolts
+min_frames = 2        # minimum consecutive frames a bolt must appear
 consec_detections = 0     # consecutive frames seen for current bolt
 
 # -----------------------------
@@ -127,37 +168,120 @@ def circle_detector(img, roi=None, dp=1.5, min_dist=20, param1=80, param2=15, mi
 # Template detector
 # ------------------------------
 def template_detector(img, method_type="cv", roi=None,
-                      template_path=f"{current_directory}/SUNCOR/SUNCOR_24/template_ir_enhanced.png",
-                      threshold=0.5):
-    img_roi, offset = crop_roi(img, roi, shift_up=25, shift_left=125)
+                      template_path=f"{current_directory}/CPC/CPC_9/template_bolt_0.png",
+                      threshold=0.6):
+    """
+    Detects objects using multiple feature/template matching methods.
+    
+    method_type options:
+        - "cv"    : OpenCV template matching
+        - "orb"   : ORB feature matching
+        - "akaze" : AKAZE feature matching
+        - "sift"  : SIFT feature matching
+    
+    roi: tuple (x, y, w, h) specifying region of interest in the image
+    threshold: used only for template matching
+    """
+    if img is None:
+        return 0, []
+
+    # Crop ROI if provided
+    img_roi, offset = crop_roi(img, roi, shift_up=10, shift_left=0)
+
+    # Convert to grayscale and apply CLAHE
     gray = cv2.cvtColor(img_roi, cv2.COLOR_BGR2GRAY)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(11,11))
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(5,5))
     gray = clahe.apply(gray)
-    # cv2.imshow("CLAHE gray", gray)
+    cv2.imshow("CLAHE gray", gray)
+
+    # Read and preprocess template
     template = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
     if template is None:
         print(f"[WARN] Template not found: {template_path}")
         return 0, []
 
+    # template = clahe.apply(template)
+    cv2.imshow("CLAHE template", template)
+
+    # -----------------------------
+    # 1. OpenCV Template Matching
+    # -----------------------------
     if method_type == "cv":
+        if template.shape[0] > gray.shape[0] or template.shape[1] > gray.shape[1]:
+            print("[WARN] Template larger than ROI. Skipping match.")
+            return 0, []
+        #----- Finding the best match
+        # min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+        # if max_val<threshold:
+        #     return 0, []
+        # bboxes=[(max_loc[0]+offset[0],max_loc[1]+offset[1],template.shape[1], template.shape[0])]
+        #------ Finding multiple instances
         res = cv2.matchTemplate(gray, template, cv2.TM_CCOEFF_NORMED)
         loc = np.where(res >= threshold)
         bboxes = [(pt[0]+offset[0], pt[1]+offset[1], template.shape[1], template.shape[0])
                   for pt in zip(*loc[::-1])]
         return len(bboxes), bboxes
-    elif method_type == "orb":
-        orb = cv2.ORB_create()
-        kp1, des1 = orb.detectAndCompute(template, None)
-        kp2, des2 = orb.detectAndCompute(gray, None)
-        bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-        if des1 is None or des2 is None: return 0, []
-        matches = bf.match(des1, des2)
-        matches = sorted(matches, key=lambda x: x.distance)
-        if len(matches) < 4: return 0, []
-        points = np.float32([kp2[m.trainIdx].pt for m in matches]).reshape(-1, 2)
+
+    # -----------------------------
+    # 2. ORB / AKAZE / SIFT Feature Matching with KNN
+    # -----------------------------
+    elif method_type in ["orb", "akaze", "sift"]:
+    # ------------------- Configure feature detector -------------------
+        if method_type == "orb":
+            feature = cv2.ORB_create(
+                nfeatures=1000,       # max keypoints
+                scaleFactor=1.2,      # pyramid scaling
+                nlevels=8,            # pyramid levels
+                edgeThreshold=15,
+                firstLevel=0,
+                WTA_K=2,
+                scoreType=cv2.ORB_HARRIS_SCORE
+            )
+            norm_type = cv2.NORM_HAMMING
+        elif method_type == "akaze":
+            feature = cv2.AKAZE_create(
+                descriptor_type=cv2.AKAZE_DESCRIPTOR_MLDB,
+                descriptor_size=0,
+                descriptor_channels=3,
+                threshold=0.001,    # lower = more keypoints
+                nOctaves=5,
+                nOctaveLayers=4
+            )
+            norm_type = cv2.NORM_HAMMING
+        elif method_type == "sift":
+            feature = cv2.SIFT_create(nfeatures=10, contrastThreshold=0.05, edgeThreshold=10, sigma=1.6)
+            # feature = cv2.SIFT_create()
+            norm_type = cv2.NORM_L2
+
+        # ------------------- Detect keypoints and descriptors -------------------
+        kp1, des1 = feature.detectAndCompute(template, None)
+        kp2, des2 = feature.detectAndCompute(gray, None)
+        if des1 is None or des2 is None:
+            return 0, []
+
+        # ------------------- KNN matching with ratio test ------------------        
+        bf = cv2.BFMatcher(norm_type)
+        matches = bf.knnMatch(des1, des2, k=2)  # <- returns list of [m, n]
+
+        good_matches = []
+        ratio_thresh = 0.85
+        for m_n in matches:
+            if len(m_n) != 2:
+                continue  # skip if less than 2 neighbors found
+            m, n = m_n
+            if m.distance < ratio_thresh * n.distance:
+                good_matches.append(m)
+        # Require at least 4 good matches
+        if len(good_matches) < 4:
+            return 0, []
+
+        # ------------------- Bounding box around matched keypoints -------------------
+        points = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 2)
         x, y, w, h = cv2.boundingRect(points)
-        return 1, [(x+offset[0], y+offset[1], w, h)]
+        return 1, [(x + offset[0], y + offset[1], w, h)]
+
     return 0, []
+
 
 # ------------------------------
 # YOLO detector
