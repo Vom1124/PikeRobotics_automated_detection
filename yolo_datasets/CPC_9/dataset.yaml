@@ -1,0 +1,5 @@
+path: yolo_datasets/CPC_9
+train: images
+val: images
+nc: 1
+names: ['bolt']

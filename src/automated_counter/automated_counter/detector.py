@@ -90,8 +90,8 @@ def crop_roi(img, roi, shift_up=0, shift_left=0):
 # -----------------------------
 bolt_count = 0
 last_detect_time = 0
-cooldown_period = 2.0   # seconds to ignore duplicate bolts
-min_frames = 2        # minimum consecutive frames a bolt must appear
+cooldown_period = 2.5   # seconds to ignore duplicate bolts
+min_frames = 2       # minimum consecutive frames a bolt must appear
 consec_detections = 0     # consecutive frames seen for current bolt
 
 # -----------------------------
@@ -168,7 +168,7 @@ def circle_detector(img, roi=None, dp=1.5, min_dist=20, param1=80, param2=15, mi
 # Template detector
 # ------------------------------
 def template_detector(img, method_type="cv", roi=None,
-                      template_path=f"{current_directory}/CPC/CPC_9/template_bolt_0.png",
+                      template_path=f"{current_directory}/CPC/CPC_10/template_bolt_1.png",
                       threshold=0.6):
     """
     Detects objects using multiple feature/template matching methods.
@@ -190,7 +190,7 @@ def template_detector(img, method_type="cv", roi=None,
 
     # Convert to grayscale and apply CLAHE
     gray = cv2.cvtColor(img_roi, cv2.COLOR_BGR2GRAY)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(5,5))
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(3,3))
     gray = clahe.apply(gray)
     cv2.imshow("CLAHE gray", gray)
 
@@ -200,7 +200,7 @@ def template_detector(img, method_type="cv", roi=None,
         print(f"[WARN] Template not found: {template_path}")
         return 0, []
 
-    # template = clahe.apply(template)
+    template = clahe.apply(template)
     cv2.imshow("CLAHE template", template)
 
     # -----------------------------
@@ -249,8 +249,8 @@ def template_detector(img, method_type="cv", roi=None,
             )
             norm_type = cv2.NORM_HAMMING
         elif method_type == "sift":
-            feature = cv2.SIFT_create(nfeatures=10, contrastThreshold=0.05, edgeThreshold=10, sigma=1.6)
-            # feature = cv2.SIFT_create()
+            # feature = cv2.SIFT_create(nfeatures=2, contrastThreshold=0.05, edgeThreshold=1, sigma=1.6)
+            feature = cv2.SIFT_create()
             norm_type = cv2.NORM_L2
 
         # ------------------- Detect keypoints and descriptors -------------------
@@ -264,7 +264,7 @@ def template_detector(img, method_type="cv", roi=None,
         matches = bf.knnMatch(des1, des2, k=2)  # <- returns list of [m, n]
 
         good_matches = []
-        ratio_thresh = 0.85
+        ratio_thresh = 0.95
         for m_n in matches:
             if len(m_n) != 2:
                 continue  # skip if less than 2 neighbors found
