@@ -21,12 +21,16 @@ current_directory = os.getcwd()
 #------------------------------------------------------
 # Getting the optimum Template scale for better match
 #------------------------------------------------------
-scale_factor = 0.8
-current_scale = 1.0
-best_val = -1
+best_template_scale = None # Global variable
 def get_template_scale(img, template):
+    scales = np.linspace(0.25, 2.5, 10)
+    current_scale = 1.0
+    best_val = -1
+    # -------
+    # Option-1: Downsampling the main image
+    ########
     # Pyramid style downsampling the image to find best fit scale
-    while min(img.shape[:2]) >= template.shape[0:2]:
+    while (img.shape[0] >= template.shape[0]) and (img.shape[1] >= template.shape[1]):
         res = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, max_loc = cv2.minMaxLoc(res)
         if max_val > best_val:
@@ -36,26 +40,24 @@ def get_template_scale(img, template):
         img = cv2.resize(img, (0,0), fx=scale_factor, fy=scale_factor)
         current_scale *= scale_factor
 
-    best_val = -1
-    best_loc = None
-    best_scale = 1.0
-
-    scales = np.linspace(0.5, 1.5, 11)  # test 0.5x to 1.5x template
-    for scale in scales:
-        resized_template = cv2.resize(template, (0,0), fx=scale, fy=scale)
-        if resized_template.shape[0] > img.shape[0] or resized_template.shape[1] > img.shape[1]:
-            continue  # template too big
-        res = cv2.matchTemplate(img, resized_template, cv2.TM_CCOEFF_NORMED)
-        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
-        if max_val > best_val:
-            best_val = max_val
-            best_loc = max_loc
-            best_scale = scale
-
-    # Use best_loc and best_scale to draw bounding box
-    x, y = best_loc
-    w, h = int(template.shape[1]*best_scale), int(template.shape[0]*best_scale)
-    bbox = (x, y, w, h)
+    # ----------
+    # Option-2: Down/up sampling the template 
+    ###########
+    # scales = np.linspace(0.25, 2.5, 10)  # test 0.25x to 2.5x template
+    # for scale in scales:
+    #     resized_template = cv2.resize(template, (0,0), fx=scale, fy=scale)
+    #     if resized_template.shape[0] > img.shape[0] or resized_template.shape[1] > img.shape[1]:
+    #         continue  # template too big
+    #     res = cv2.matchTemplate(img, resized_template, cv2.TM_CCOEFF_NORMED)
+    #     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+    #     if max_val > best_val:
+    #         best_val = max_val
+    #         best_loc = max_loc
+    #         best_scale = scale
+            
+    #---------------
+    print(f"[INFO] Best template scale found: {best_scale:.2f} (score={best_val:.3f})")
+    return best_scale
 
 # ------------------------------
 # Crop ROI
@@ -168,8 +170,9 @@ def circle_detector(img, roi=None, dp=1.5, min_dist=20, param1=80, param2=15, mi
 # Template detector
 # ------------------------------
 def template_detector(img, method_type="cv", roi=None,
-                      template_path=f"{current_directory}/CPC/CPC_10/template_bolt_1.png",
+                      template_path=f"{current_directory}/CPC/CPC_9/template_bolt_1.png",
                       threshold=0.6):
+    global best_template_scale
     """
     Detects objects using multiple feature/template matching methods.
     
@@ -186,21 +189,29 @@ def template_detector(img, method_type="cv", roi=None,
         return 0, []
 
     # Crop ROI if provided
-    img_roi, offset = crop_roi(img, roi, shift_up=10, shift_left=0)
+    img_roi, offset = crop_roi(img, roi, shift_up=0, shift_left=0)
 
     # Convert to grayscale and apply CLAHE
     gray = cv2.cvtColor(img_roi, cv2.COLOR_BGR2GRAY)
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(3,3))
+    
+    thresh_value = p_tile_algo.p_tile_thresh(gray, 0.9)  # Now this works
+    ret, gray_seg = cv2.threshold(gray, thresh_value, np.max(gray), cv2.THRESH_TOZERO_INV)
+    gray = image_morph.image_morph_algo(gray)
     gray = clahe.apply(gray)
+    
+    
+    
     cv2.imshow("CLAHE gray", gray)
-
+    
     # Read and preprocess template
     template = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
+    # template = image_morph.image_morph_algo(template)
     if template is None:
         print(f"[WARN] Template not found: {template_path}")
         return 0, []
 
-    template = clahe.apply(template)
+    # template = clahe.apply(template)
     cv2.imshow("CLAHE template", template)
 
     # -----------------------------
@@ -210,16 +221,35 @@ def template_detector(img, method_type="cv", roi=None,
         if template.shape[0] > gray.shape[0] or template.shape[1] > gray.shape[1]:
             print("[WARN] Template larger than ROI. Skipping match.")
             return 0, []
-        #----- Finding the best match
+        #----- 
+        # Finding the best match
+        #------------
         # min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
         # if max_val<threshold:
         #     return 0, []
         # bboxes=[(max_loc[0]+offset[0],max_loc[1]+offset[1],template.shape[1], template.shape[0])]
-        #------ Finding multiple instances
-        res = cv2.matchTemplate(gray, template, cv2.TM_CCOEFF_NORMED)
+        
+        #------
+        # Finding multiple instances
+        #----------
+        # ✅ Use 1.0 as default until first good detection
+        current_scale = best_template_scale if best_template_scale is not None else 1.0
+        template_scaled = cv2.resize(template, (0, 0), fx=current_scale, fy=current_scale)   
+
+        #   --- Perform normal template matching --- 
+        res = cv2.matchTemplate(gray, template_scaled, cv2.TM_CCOEFF_NORMED)
         loc = np.where(res >= threshold)
-        bboxes = [(pt[0]+offset[0], pt[1]+offset[1], template.shape[1], template.shape[0])
-                  for pt in zip(*loc[::-1])]
+        bboxes = [(pt[0]+offset[0], pt[1]+offset[1],
+                template_scaled.shape[1], template_scaled.shape[0])
+                for pt in zip(*loc[::-1])]
+        
+        # --- If detection succeeds and we never computed scale before ---
+        # ✅ Only find scale once
+        if len(bboxes) > 0 and best_template_scale is None:
+            print("[INFO] First detection succeeded — calibrating template scale...")
+            best_template_scale = get_template_scale(gray, template)
+            print(f"[INFO] Fixed template scale set to {best_template_scale:.2f}")
+            
         return len(bboxes), bboxes
 
     # -----------------------------
@@ -341,7 +371,9 @@ def detect(img, method="threshold", method_type="cv", roi=None, fitness_func=Non
     elif method == "template":
         count, bboxes = template_detector(img, method_type, roi, **kwargs)
     elif method == "yolo":
-        count, bboxes = yolo_detector(img, roi, **kwargs)
+        #----- Loading trained YOLO model
+        yolo_model_path = f"{current_directory}/yolo_train/bolt_detection_CPC_CPC_9/weights/best.pt"
+        count, bboxes = yolo_detector(img, roi, model_path=yolo_model_path, **kwargs)
     elif method == "DE":
         count, bboxes = DE_Detector(img, fitness_func, roi, **kwargs)
     else:

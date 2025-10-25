@@ -6,23 +6,31 @@ import time
 
 from automated_counter import detector
 
+# import torch
+
+# torch.set_num_threads(1)
+
+# os.environ["USE_NNPACK"] = "0"
+
 # ==========================
 # USER TOGGLE: DETECT OR TRAIN
 # ==========================
-generate_detections = False   # <<< SET TO False TO TRAIN MODEL
+generate_detections = True   # <<< SET TO False TO TRAIN MODEL
+# Selecting the YOLO model
+use_base_model = False  # True = start from yolov8n.pt, False = continue training from last checkpoint
 
-# # ==========================
-# # AUTO-RESTART INSIDE YOLO VENV
-# # # ==========================
-# venv_path = "/home/vom/ros2_ws/venv_yolo"
-# venv_python = os.path.join(venv_path, "bin", "python")
-# # Check if we’re already inside the YOLO venv
-# if venv_path not in sys.prefix:
-#     if os.path.exists(venv_python):
-#         print(f"[INFO] Restarting inside YOLO venv: {venv_path}")
-#         os.execvp(venv_python, [venv_python] + sys.argv)
-#     else:
-#         raise FileNotFoundError(f"[ERROR] No python executable found at {venv_python}")
+# ==========================
+# AUTO-RESTART INSIDE YOLO VENV
+# ==========================
+venv_path = "/home/vom/venv_avx_free_yolo" # <---- Change this to reflect your python venv where ultralytics is installed
+venv_python = os.path.join(venv_path, "bin", "python")
+# Check if we’re already inside the YOLO venv
+if venv_path not in sys.prefix:
+    if os.path.exists(venv_python):
+        print(f"\033[33;1m [INFO] Restarting inside YOLO venv: {venv_path}\033[0m")
+        os.execvp(venv_python, [venv_python] + sys.argv)
+    else:
+        raise FileNotFoundError(f"[ERROR] No python executable found at {venv_python}")
 
 # ==========================
 # CHECK YOLO AVAILABILITY
@@ -32,7 +40,7 @@ try:
     YOLO_AVAILABLE = True
 except ImportError:
     YOLO_AVAILABLE = False
-    print("[WARN] Ultralytics YOLO not installed or venv not active. Training will be skipped.")
+    print("\033[31;0m [WARN] Ultralytics YOLO not installed or venv not active. Training will be skipped.\033[0m")
 
 # ==========================
 # CONFIGURATION
@@ -52,13 +60,12 @@ roi = (roi_x, roi_y, roi_w, roi_h)
 use_path_1 = True  # True = use CPC dataset, False = use SUNCOR
 
 # Dataset paths
-path_1 = "/home/vom/ros2_ws/PikeRobotics_automated_counting/CPC"
-path_2 = "/home/vom/ros2_ws/PikeRobotics_automated_counting/SUNCOR"
+working_dir= "/home/vom/ros2_ws/PikeRobotics_automated_counting"
 
 # Dynamically set dataset path and name
 if use_path_1:
-    path = path_1
     __dataname__ = "CPC"
+    path = f"{working_dir}/{__dataname__}"
     # <-- set this to whichever CPC subfolder you’re using
     current_dataset = "CPC_9"
     # current_dataset = "CPC_10"
@@ -66,8 +73,8 @@ if use_path_1:
     # current_dataset = "CPC_43"
     # current_dataset = "CPC_61"   
 else:
-    path = path_2
     __dataname__ = "SUNCOR"
+    path = f"{working_dir}/{__dataname__}"
     current_dataset = "SUNCOR_24"  # <-- set this to whichever SUNCOR subfolder you’re using
 
 dataset_path = current_dataset
@@ -96,7 +103,7 @@ class_id = 0  # YOLO class for bolts
 # -------------------------
 # YOLO TRAINING FUNCTION
 # -------------------------
-def train_yolo(dataset_dir, epochs=50, imgsz=640, device="cpu", model="yolov8n.pt"):
+def train_yolo(dataset_dir, epochs=50, imgsz=640, device="cpu", model_path=None):
     """
     Train YOLOv8 on the collected frames.
     Args:
@@ -104,10 +111,11 @@ def train_yolo(dataset_dir, epochs=50, imgsz=640, device="cpu", model="yolov8n.p
         epochs: int, number of training epochs
         imgsz: int, image size
         device: CPU/GPU
-        model: str, base YOLOv8 model
+        model_path: str, path to YOLO model weights to start training from
+                    If None, starts from base yolov8n.pt
     """
     if not YOLO_AVAILABLE:
-        print("[WARN] YOLO not available. Skipping training.")
+        print("\033[31;1m[WARN] YOLO not available. Skipping training.\033[0m")
         return
 
     # Create dataset yaml
@@ -119,8 +127,17 @@ def train_yolo(dataset_dir, epochs=50, imgsz=640, device="cpu", model="yolov8n.p
         f.write("nc: 1\n")
         f.write("names: ['bolt']\n")
 
-    print(f"[INFO] Starting YOLO training for dataset: {dataset_dir}") 
-    model_yolo = YOLO(model)
+    # Determine model to use
+    if model_path is None:
+        model_path = "yolov8n.pt"
+    else:
+        # If existing model doesn't exist, fallback to base model
+        if not os.path.exists(model_path):
+            print(f"\033[31;1m[WARN] Model not found at {model_path}. Falling back to base model.\033[0m")
+            model_path = "yolov8n.pt"
+
+    print(f"\033[33;1m [INFO] Starting YOLO training with model: {model_path}\033[0m")
+    model_yolo = YOLO(model_path)
 
     # Unique model name for each dataset
     model_name = f"bolt_detection_{__dataname__}_{os.path.basename(dataset_dir)}"
@@ -128,12 +145,16 @@ def train_yolo(dataset_dir, epochs=50, imgsz=640, device="cpu", model="yolov8n.p
     model_yolo.train(
         data=dataset_yaml,
         epochs=epochs,
-        imgsz=imgsz,
+        imgsz=min(imgsz, 640),  # reduce image size for CPU
+        # batch=2,                 # small batch size to avoid CPU instruction issues
         project="yolo_train",
-        name=model_name
+        name=model_name,
+        device=device,
+        # half=False,              # force FP32
+        # compile=False            # disable torch.compile if used in newer Ultralytics
     )
 
-    print(f"[INFO] YOLO training completed for {dataset_dir}. Model saved as '{model_name}' in 'yolo_train/' directory.")
+    print(f"\033[32;1m [INFO] YOLO training completed for {dataset_dir}. Model saved in 'yolo_train/{model_name}/weights/'.\033[0m")
 
 # -------------------------
 # VIDEO PROCESSING LOOP
@@ -148,7 +169,7 @@ def generate_training_data():
     while True:
         ret, frame = cap.read()
         if not ret:
-            print("End of video reached.")
+            print("*************************End of video reached.************************")
             break
 
         # DETECTION
@@ -176,7 +197,7 @@ def generate_training_data():
                     h_norm = bh / h_img
                     f.write(f"{class_id} {x_center} {y_center} {w_norm} {h_norm}\n")
 
-            print(f"[INFO] Saved frame {frame_id} with {len(bboxes)} detections.")
+            print(f"\033[33;1m[INFO] Saved frame {frame_id} with {len(bboxes)} detections.\033[0m")
             frame_id += 1
 
         prev_tracked_count = count
@@ -194,9 +215,30 @@ def generate_training_data():
 # ==========================
 if __name__ == "__main__":
     if generate_detections:
-        print(f"[MODE] GENERATE DATA for dataset '{current_dataset}'")
+        print(f"\033[35;1m[MODE] GENERATE DATA for dataset '{current_dataset}'\033[0m")
         generate_training_data()
     else:
-        print(f"[MODE] TRAIN YOLO for dataset '{current_dataset}'")
-        sys.exit()
-        train_yolo(output_dir, epochs=100)
+        print(f"\033[35;1m[MODE] TRAIN YOLO for dataset '{current_dataset}'\033[0m")
+
+        # Dynamically set existing model path if use_base_model is False
+        existing_model_path = os.path.join(
+            "yolo_train",
+            f"bolt_detection_{__dataname__}_{os.path.basename(output_dir)}",
+            "weights",
+            "best.pt"
+        )
+
+        model_to_train = "yolov8n.pt" if use_base_model else existing_model_path
+
+        # -------------------------
+        # CPU-SAFE TRAINING PARAMETERS
+        # -------------------------
+        cpu_safe_imgsz = 640  # reduce image size for CPU
+
+        train_yolo(
+            dataset_dir=output_dir,
+            epochs=100,
+            imgsz=cpu_safe_imgsz,
+            device="cpu",
+            model_path=model_to_train
+        )

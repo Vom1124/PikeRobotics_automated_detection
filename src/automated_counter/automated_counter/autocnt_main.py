@@ -19,24 +19,42 @@ use_camera = False          # True = live ROS2, False = load from folder
 
 # H, W = rgb_frame.shape[:2]
 H, W = (480,640)
-roi_w, roi_h = 100, 100
+roi_w, roi_h = 100, 80
 roi_x = (W - roi_w) // 2
 roi_y = (H - roi_h) // 2
 roi = (roi_x, roi_y, roi_w, roi_h)
 
 
-# Dataset paths
-path_1 = "/home/vom/ros2_ws/PikeRobotics_automated_counting/CPC"
-path_2 = "/home/vom/ros2_ws/PikeRobotics_automated_counting/SUNCOR"
-dataset_path_1 = "CPC_9"
-dataset_path_2 = "SUNCOR_24"
+
+# ==========================
+# DATASET CONFIGURATION
+# ==========================
 use_path_1 = True  # Choose dataset CPCHem or SUNCOR
 
-path, dataset_path = (path_1, dataset_path_1) if use_path_1 else (path_2, dataset_path_2)
+# Dataset paths
+working_dir= "/home/vom/ros2_ws/PikeRobotics_automated_counting"
+
+# Dynamically set dataset path and name
+if use_path_1:
+    __dataname__ = "CPC"
+    path = f"{working_dir}/{__dataname__}"
+    # <-- set this to whichever CPC subfolder you’re using
+    current_dataset = "CPC_9"
+    # current_dataset = "CPC_10"
+    # current_dataset = "CPC_19"
+    # current_dataset = "CPC_43"
+    # current_dataset = "CPC_61"   
+else:
+    __dataname__ = "SUNCOR"
+    path = f"{working_dir}/{__dataname__}"
+    current_dataset = "SUNCOR_24"  # <-- set this to whichever SUNCOR subfolder you’re using
+
+#------ Current dataset 
+dataset_path = current_dataset
 
 # Define video paths dynamically 
 #-- CPC Files 
-rgb_video_path = f"{path}/{dataset_path}/CPC_9__wombot_gen3proto_seal_cameras_realsense_color_image_raw_compressed.mp4" 
+rgb_video_path = f"{path}/{dataset_path}/{dataset_path}__wombot_gen3proto_seal_cameras_realsense_color_image_raw_compressed.mp4" 
 # ir_video_path = f"{path}/{dataset_path}/CPC_9__wombot_gen3proto_seal_cameras_realsense_infra1_image_rect_raw_compressed.mp4" 
 # gray_video_path = f"{path}/{dataset_path}/CPC_9__wombot_gen3proto_seal_cameras_flexx_gray_image_raw_compressed.mp4" 
 # depth_video_path = f"{path}/{dataset_path}/depth.mp4" 
@@ -113,7 +131,8 @@ if not use_camera:
             # ####################
             # DETECTOR
             #######################
-            count, bboxes = detector.detect(rgb_frame, method="template", method_type="sift", roi =roi)
+            # count, bboxes = detector.detect(rgb_frame, method="template", method_type="cv", roi =roi)
+            count, bboxes = detector.detect(rgb_frame, method="template", method_type="yolo", roi =roi)
             cv2.putText(rgb_frame, f"Bolts: {count}", (10,60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
             for (x, y, w, h) in bboxes:
                 cv2.rectangle(rgb_frame, (x, y), (x+w, y+h), (0,0,255), 2)

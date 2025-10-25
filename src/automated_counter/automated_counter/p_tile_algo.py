@@ -7,14 +7,14 @@ import cv2
 import os
 import sys
 
-# # -----------------------
+# -----------------------
 # Function definition
-# # -----------------------
-# def p_tile_thresh(img, AOI):
-#     n_pixels = AOI * img.shape[0] * img.shape[1]
-#     hist = np.histogram(img, bins=range(65535))[0]
-#     hist = np.cumsum(hist)
-#     return np.argmin(np.abs(hist - n_pixels))
+# -----------------------
+def p_tile_thresh(img, AOI):
+    n_pixels = AOI * img.shape[0] * img.shape[1]
+    hist = np.histogram(img, bins=range(65535))[0]
+    hist = np.cumsum(hist)
+    return np.argmin(np.abs(hist - n_pixels))
 
 # # -----------------------
 # # Load image and apply p-tile threshold

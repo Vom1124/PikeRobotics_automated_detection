@@ -40,13 +40,13 @@ def image_morph_algo(img):
         numpy.ndarray: Processed depth image with enhanced features
     """
     # Step 1: Noise reduction with median blur
-    img_filtered = cv.medianBlur(img, 5)
+    img_filtered = cv.medianBlur(img, 3)
     
     # Step 2: Erosion to remove small noise artifacts
-    img_eroded = cv.erode(img_filtered, kernel_morph, iterations=7)
+    img_eroded = cv.erode(img_filtered, kernel_morph, iterations=3)
     
     # Step 3: Dilation to enhance remaining features
-    img_morph = cv.dilate(img_eroded, kernel_morph, iterations=7)
+    img_morph = cv.dilate(img_eroded, kernel_morph, iterations=1)
     
     # Optional sharpening (commented out as it may amplify noise)
     # img_morph = cv.filter2D(img_morph, -1, kernel_sharpen)
