@@ -23,7 +23,8 @@ current_directory = os.getcwd()
 #------------------------------------------------------
 best_template_scale = None # Global variable
 def get_template_scale(img, template):
-    scales = np.linspace(0.25, 2.5, 10)
+    # scales = np.linspace(0.25, 2.5, 10)
+    scale_factor=0.65
     current_scale = 1.0
     best_val = -1
     # -------
@@ -92,8 +93,8 @@ def crop_roi(img, roi, shift_up=0, shift_left=0):
 # -----------------------------
 bolt_count = 0
 last_detect_time = 0
-cooldown_period = 2.5   # seconds to ignore duplicate bolts
-min_frames = 2       # minimum consecutive frames a bolt must appear
+cooldown_period = 2.75   # seconds to ignore duplicate bolts
+min_frames = 5       # minimum consecutive frames a bolt must appear
 consec_detections = 0     # consecutive frames seen for current bolt
 
 # -----------------------------
@@ -170,7 +171,7 @@ def circle_detector(img, roi=None, dp=1.5, min_dist=20, param1=80, param2=15, mi
 # Template detector
 # ------------------------------
 def template_detector(img, method_type="cv", roi=None,
-                      template_path=f"{current_directory}/CPC/CPC_9/template_bolt_1.png",
+                      template_path=f"{current_directory}/CPC/CPC_10/template_bolt_2.png",
                       threshold=0.6):
     global best_template_scale
     """
@@ -193,16 +194,13 @@ def template_detector(img, method_type="cv", roi=None,
 
     # Convert to grayscale and apply CLAHE
     gray = cv2.cvtColor(img_roi, cv2.COLOR_BGR2GRAY)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(3,3))
+    clahe = cv2.createCLAHE(clipLimit=1.0, tileGridSize=(3,3))
     
-    thresh_value = p_tile_algo.p_tile_thresh(gray, 0.9)  # Now this works
-    ret, gray_seg = cv2.threshold(gray, thresh_value, np.max(gray), cv2.THRESH_TOZERO_INV)
-    gray = image_morph.image_morph_algo(gray)
+    # thresh_value = p_tile_algo.p_tile_thresh(gray, 0.9)  # Now this works
+    # ret, gray_seg = cv2.threshold(gray, thresh_value, np.max(gray), cv2.THRESH_TOZERO_INV)
+    # gray = image_morph.image_morph_algo(gray)
     gray = clahe.apply(gray)
-    
-    
-    
-    cv2.imshow("CLAHE gray", gray)
+    # cv2.imshow("CLAHE gray", gray)
     
     # Read and preprocess template
     template = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
@@ -212,7 +210,7 @@ def template_detector(img, method_type="cv", roi=None,
         return 0, []
 
     # template = clahe.apply(template)
-    cv2.imshow("CLAHE template", template)
+    # cv2.imshow("CLAHE template", template)
 
     # -----------------------------
     # 1. OpenCV Template Matching
@@ -326,7 +324,8 @@ def yolo_detector(img, roi=None, model_path="yolov8n.pt", conf=0.05):
     else:
         img_rgb = cv2.cvtColor(img_roi, cv2.COLOR_BGR2RGB)
     model = YOLO(model_path)
-    results = model(img_rgb, conf=conf, verbose=False)
+    print(model_path)
+    results = model(img_rgb,  imgsz=640,conf=conf, verbose=True)
 
     bboxes = []
     if len(results) > 0 and results[0].boxes is not None:
@@ -373,6 +372,7 @@ def detect(img, method="threshold", method_type="cv", roi=None, fitness_func=Non
     elif method == "yolo":
         #----- Loading trained YOLO model
         yolo_model_path = f"{current_directory}/yolo_train/bolt_detection_CPC_CPC_9/weights/best.pt"
+        # yolo_model_path = "yolov8n.pt"
         count, bboxes = yolo_detector(img, roi, model_path=yolo_model_path, **kwargs)
     elif method == "DE":
         count, bboxes = DE_Detector(img, fitness_func, roi, **kwargs)

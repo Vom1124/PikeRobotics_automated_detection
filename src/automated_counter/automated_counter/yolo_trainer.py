@@ -49,7 +49,7 @@ prev_tracked_count = 0  # store count from previous frame
 frame_id = 0            # for saved frames
 
 H, W = (480, 640)
-roi_w, roi_h = 100, 150
+roi_w, roi_h = 85, 150
 roi_x = (W - roi_w) // 2
 roi_y = (H - roi_h) // 2
 roi = (roi_x, roi_y, roi_w, roi_h)
@@ -67,8 +67,8 @@ if use_path_1:
     __dataname__ = "CPC"
     path = f"{working_dir}/{__dataname__}"
     # <-- set this to whichever CPC subfolder you’re using
-    current_dataset = "CPC_9"
-    # current_dataset = "CPC_10"
+    # current_dataset = "CPC_9"
+    current_dataset = "CPC_19"
     # current_dataset = "CPC_19"
     # current_dataset = "CPC_43"
     # current_dataset = "CPC_61"   
@@ -140,7 +140,7 @@ def train_yolo(dataset_dir, epochs=50, imgsz=640, device="cpu", model_path=None)
     model_yolo = YOLO(model_path)
 
     # Unique model name for each dataset
-    model_name = f"bolt_detection_{__dataname__}_{os.path.basename(dataset_dir)}"
+    model_name = f"bolt_detection_{os.path.basename(dataset_dir)}"
 
     model_yolo.train(
         data=dataset_yaml,
@@ -174,7 +174,7 @@ def generate_training_data():
 
         # DETECTION
         count, bboxes = detector.detect(frame, method=method, method_type=method_type, roi=roi)
-
+        frame_yolo_copy = frame.copy()
         # Draw detections for visualization
         cv2.putText(frame, f"Bolts: {count}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
         for (x, y, w, h) in bboxes:
@@ -184,15 +184,22 @@ def generate_training_data():
         if count > prev_tracked_count:
             img_filename = f"frame_{frame_id:05d}.jpg"
             img_path = os.path.join(image_dir, img_filename)
+            frame_roi = frame_yolo_copy[roi_y:roi_y+roi_h, roi_x:roi_x+roi_w]
+            cv2.imshow("roi", frame_roi)
             cv2.imwrite(img_path, frame)
 
             # Save YOLO labels
-            h_img, w_img = frame.shape[:2]
+            h_img, w_img = frame_roi.shape[:2]
             label_path = os.path.join(label_dir, img_filename.replace(".jpg", ".txt"))
             with open(label_path, "w") as f:
                 for (x, y, bw, bh) in bboxes:
-                    x_center = (x + bw/2) / w_img
-                    y_center = (y + bh/2) / h_img
+                    # shift bbox to ROI coordinates
+                    x_rel = x - roi_x
+                    y_rel = y - roi_y
+
+                    # normalize
+                    x_center = (x_rel + bw/2) / w_img
+                    y_center = (y_rel + bh/2) / h_img
                     w_norm = bw / w_img
                     h_norm = bh / h_img
                     f.write(f"{class_id} {x_center} {y_center} {w_norm} {h_norm}\n")
@@ -204,7 +211,7 @@ def generate_training_data():
 
         # Display
         cv2.imshow("RGB Video", frame)
-        if cv2.waitKey(100) & 0xFF == ord('q'):
+        if cv2.waitKey(250) & 0xFF == ord('q'):
             break
 
     cap.release()
@@ -237,7 +244,7 @@ if __name__ == "__main__":
 
         train_yolo(
             dataset_dir=output_dir,
-            epochs=100,
+            epochs=40,
             imgsz=cpu_safe_imgsz,
             device="cpu",
             model_path=model_to_train
