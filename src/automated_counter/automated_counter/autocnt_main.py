@@ -32,7 +32,7 @@ roi = (roi_x, roi_y, roi_w, roi_h)
 use_path_1 = True  # Choose dataset CPCHem or SUNCOR
 
 # Dataset paths
-working_dir= "/home/vom/ros2_ws/PikeRobotics_automated_counting"
+working_dir= "/home/vom/ros2_ws/PikeRobotics_automated_detection"
 
 # Dynamically set dataset path and name
 if use_path_1:

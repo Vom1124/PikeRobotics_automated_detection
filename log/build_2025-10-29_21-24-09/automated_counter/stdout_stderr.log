@@ -1,0 +1,12 @@
+running develop
+running egg_info
+creating automated_counter.egg-info
+writing manifest file 'automated_counter.egg-info/SOURCES.txt'
+writing manifest file 'automated_counter.egg-info/SOURCES.txt'
+running build_ext
+running symlink_data
+creating /home/vom/ros2_ws/PikeRobotics_automated_detection/install/automated_counter/share/ament_index
+creating /home/vom/ros2_ws/PikeRobotics_automated_detection/install/automated_counter/share/ament_index/resource_index
+creating /home/vom/ros2_ws/PikeRobotics_automated_detection/install/automated_counter/share/ament_index/resource_index/packages
+symbolically linking /home/vom/ros2_ws/PikeRobotics_automated_detection/build/automated_counter/resource/automated_counter -> /home/vom/ros2_ws/PikeRobotics_automated_detection/install/automated_counter/share/ament_index/resource_index/packages
+symbolically linking /home/vom/ros2_ws/PikeRobotics_automated_detection/build/automated_counter/package.xml -> /home/vom/ros2_ws/PikeRobotics_automated_detection/install/automated_counter/share/automated_counter

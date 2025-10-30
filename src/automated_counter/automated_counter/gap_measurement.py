@@ -6,6 +6,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge
 import time
+from datetime import datetime
 import sys
 
 from automated_counter import detector
@@ -19,7 +20,7 @@ use_camera = False          # True = live ROS2, False = load from folder
 
 # H, W = rgb_frame.shape[:2]
 H, W = (172, 224) # Dimension of the Flexx Camera depth stream :(172.224,3)
-roi_w, roi_h = 172, 50
+roi_w, roi_h = 100, 50
 roi_x = (W - roi_w) // 2
 roi_y = (H - roi_h) // 2 + 25
 roi = (roi_x, roi_y, roi_w, roi_h)
@@ -30,7 +31,7 @@ roi = (roi_x, roi_y, roi_w, roi_h)
 use_path_1 = False  # Choose dataset CPCHem or SUNCOR
 
 # Dataset paths
-working_dir= "/home/vom/ros2_ws/PikeRobotics_automated_counting"
+working_dir= "/home/vom/ros2_ws/PikeRobotics_automated_detection"
 
 # Dynamically set dataset path and name
 if use_path_1:
@@ -49,6 +50,11 @@ else:
 
 #------ Current dataset 
 dataset_path = current_dataset
+# Define the codec and create VideoWriter object
+fourcc = cv2.VideoWriter_fourcc(*'XVID')  # or 'MJPG', 'MP4V'
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+output_file = f"{path}/{dataset_path}/gap_automated_meas_{timestamp}.avi"
+output_depth_vis = cv2.VideoWriter(output_file, fourcc, 15, (224,172), isColor=True)
 # Define video paths dynamically 
 #-- CPC Files 
 # rgb_video_path = f"{path}/{dataset_path}/{dataset_path}__wombot_gen3proto_seal_cameras_realsense_color_image_raw_compressed.mp4" 
@@ -101,9 +107,9 @@ def kmeans_two_clusters_depth(depth_vals):
     # cv2.kmeans needs float32 samples in shape (N,1)
     samples = depth_vals.astype(np.float32)
     # criteria, attempts, flags
-    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 50, 1.0)
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 1.0)
     K = 2
-    attempts = 4
+    attempts = 10
     flags = cv2.KMEANS_PP_CENTERS
     compactness, labels, centers = cv2.kmeans(samples, K, None, criteria, attempts, flags)
     labels = labels.flatten()
@@ -133,75 +139,68 @@ def find_nearest_valid_in_column(depth_img, col_idx, row_idx, search_limit=50):
             break
     return z_top, row_top, z_bottom, row_bottom
 
-def isolate_and_measure_gap_from_roi(depth_roi, fx, fy, cx, cy, max_depth_mm=None,
-                                     min_component_area=20, search_limit=50):
+def isolate_and_measure_gap_from_roi(depth_roi, fx, fy, cx, cy,
+                                     min_component_area=2, search_limit=50):
     """
-    depth_roi: (H_roi, W_roi) depth in mm (float or int). May contain NaN or 0 for missing points.
-    Returns dictionary with gap mask (in ROI coords), width_mm, height_mm, bbox (in ROI coords),
-    and points_3D (Nx3 camera-frame mm).
+    Robust gap detection using NaN-driven column clustering.
+    Only considers NaN regions sandwiched between valid top and bottom surfaces.
+
+    Args:
+        depth_roi: (H, W) depth in mm. NaNs or 0 for missing points.
+        fx, fy, cx, cy: camera intrinsics
+        min_component_area: minimum number of pixels to consider a gap
+        search_limit: vertical search limit for nearest valid top/bottom pixels
+
+    Returns:
+        dict with gap_mask (bool), width_mm, height_mm, bbox_roi, points_3D
     """
     depth = depth_roi.copy().astype(np.float32)
-    H_roi, W_roi = depth.shape
+    H, W = depth.shape
 
-    # 1) Valid depth mask: treat zero and NaN as invalid
-    valid_mask = (~np.isnan(depth)) & (depth > 0)
-    if max_depth_mm is not None:
-        valid_mask &= (depth <= max_depth_mm)
+    # 1) Create NaN mask (gap candidates)
+    nan_mask = (np.isnan(depth)) | (depth == 0)
 
-    # If too few valid pixels, nothing to do
-    if np.count_nonzero(valid_mask) < 10:
+    # 2) For each column, find contiguous NaN regions
+    gap_mask = np.zeros_like(depth, dtype=bool)
+    for c in range(W):
+        col = nan_mask[:, c]
+        r = 0
+        while r < H:
+            if col[r]:
+                # start of NaN segment
+                start_r = r
+                while r < H and col[r]:
+                    r += 1
+                end_r = r - 1
+
+                # Check if this NaN segment is sandwiched by valid top/bottom pixels
+                z_top = None
+                z_bottom = None
+
+                # Search upwards
+                for ru in range(start_r-1, max(start_r - search_limit - 1, -1), -1):
+                    val = depth[ru, c]
+                    if not (np.isnan(val) or val == 0):
+                        z_top = val
+                        break
+                # Search downwards
+                for rd in range(end_r+1, min(end_r + search_limit + 1, H)):
+                    val = depth[rd, c]
+                    if not (np.isnan(val) or val == 0):
+                        z_bottom = val
+                        break
+
+                if z_top is not None and z_bottom is not None:
+                    # This segment is a valid gap
+                    gap_mask[start_r:end_r+1, c] = True
+            else:
+                r += 1
+
+    if np.count_nonzero(gap_mask) < min_component_area:
         return None
 
-    # 2) K-means on valid depth values (to split into two dominant surfaces)
-    valid_depths = depth[valid_mask].reshape(-1, 1).astype(np.float32)
-    labels_flat, centers = kmeans_two_clusters_depth(valid_depths)
-    # map back labels to full image
-    labels_image = np.zeros_like(depth, dtype=np.int32)  # 0 reserved for invalid
-    labels_image[valid_mask] = labels_flat + 1  # labels in {1,2}
-
-    # Determine which label is top (smaller depth = closer to camera)
-    if centers[0] < centers[1]:
-        top_label, bottom_label = 1, 2
-    else:
-        top_label, bottom_label = 2, 1
-
-    top_mask = (labels_image == top_label)
-    bottom_mask = (labels_image == bottom_label)
-
-    # Optionally filter out tiny isolated clusters in top/bottom masks (clean up)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
-    top_mask = cv2.morphologyEx(top_mask.astype(np.uint8), cv2.MORPH_OPEN, kernel).astype(bool)
-    bottom_mask = cv2.morphologyEx(bottom_mask.astype(np.uint8), cv2.MORPH_OPEN, kernel).astype(bool)
-
-    # 3) Candidate gap pixels: NaN or zero in depth
-    nan_mask = (~valid_mask)
-
-    # 4) Adjacency: gap pixel must touch both top and bottom surfaces
-    # Dilate top and bottom to allow small separation
-    dil_size = 3
-    kernel_d = cv2.getStructuringElement(cv2.MORPH_RECT, (dil_size, dil_size))
-    top_dil = cv2.dilate(top_mask.astype(np.uint8), kernel_d).astype(bool)
-    bottom_dil = cv2.dilate(bottom_mask.astype(np.uint8), kernel_d).astype(bool)
-
-    # Candidate gap pixels that are adjacent to both (in ROI)
-    gap_candidates = nan_mask & top_dil & bottom_dil
-
-    # Remove gap candidates that touch ROI border if they appear to be background holes
-    # (optional) — we assume the real gap is internal; if your ROI can legitimately include border gaps, you can disable this.
-    border_margin = 1
-    border_mask = np.zeros_like(gap_candidates, dtype=bool)
-    border_mask[0:border_margin, :] = True
-    border_mask[-border_margin:, :] = True
-    border_mask[:, 0:border_margin] = True
-    border_mask[:, -border_margin:] = True
-    # remove border touching
-    gap_candidates = gap_candidates & (~border_mask)
-
-    # 5) Connected components: find contiguous gap blobs
-    gap_components_img = (gap_candidates.astype(np.uint8) * 255).astype(np.uint8)
-    if np.count_nonzero(gap_components_img) == 0:
-        return None
-
+    # 3) Connected components to pick largest gap
+    gap_components_img = (gap_mask.astype(np.uint8) * 255).astype(np.uint8)
     num_labels, labels_cc = cv2.connectedComponents(gap_components_img)
     if num_labels <= 1:
         return None
@@ -210,66 +209,55 @@ def isolate_and_measure_gap_from_roi(depth_roi, fx, fy, cx, cy, max_depth_mm=Non
     areas = []
     for lab in range(1, num_labels):
         areas.append(np.sum(labels_cc == lab))
-    if len(areas) == 0:
-        return None
     largest_idx = int(np.argmax(areas)) + 1
-
-    # If largest is too small, no reliable gap
     if areas[largest_idx - 1] < min_component_area:
         return None
 
     gap_mask_final = (labels_cc == largest_idx)
 
-    # Optional: fill small holes and smooth gap mask
-    gap_mask_final = cv2.morphologyEx(gap_mask_final.astype(np.uint8), cv2.MORPH_CLOSE, kernel_d).astype(bool)
+    # Optional: smooth/fill small holes
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
+    gap_mask_final = cv2.morphologyEx(gap_mask_final.astype(np.uint8), cv2.MORPH_CLOSE, kernel).astype(bool)
 
-    # 6) Compute a reasonable Z for each gap pixel.
-    # We'll search up and down the same column for nearest valid top and bottom pixels and average their depths.
-    gap_indices = np.argwhere(gap_mask_final)  # rows, cols
+    # 4) Back-project gap pixels to 3D camera frame
+    gap_indices = np.argwhere(gap_mask_final)
     if gap_indices.size == 0:
         return None
 
-    Xs = []
-    Ys = []
-    Zs = []
-
+    Xs, Ys, Zs = [], [], []
     for (r, c) in gap_indices:
-        z_top, r_top, z_bottom, r_bottom = find_nearest_valid_in_column(depth, c, r, search_limit=search_limit)
+        # Find nearest valid top/bottom depths
+        z_top, _, z_bottom, _ = find_nearest_valid_in_column(depth, c, r, search_limit)
         if z_top is None or z_bottom is None:
-            # skip pixels where we can't find both neighbors within limit
             continue
-        # use midpoint depth (you can change to linear interpolation if you want)
         z_mid = 0.5 * (z_top + z_bottom)
-        # back-project to camera frame (mm)
-        u = float(c)
-        v = float(r)
-        X = (u - cx) * z_mid / fx
-        Y = (v - cy) * z_mid / fy
+        X = (c - cx) * z_mid / fx
+        Y = (r - cy) * z_mid / fy
         Xs.append(X); Ys.append(Y); Zs.append(z_mid)
 
     if len(Xs) == 0:
         return None
 
-    Xs = np.array(Xs, dtype=np.float32)
-    Ys = np.array(Ys, dtype=np.float32)
-    Zs = np.array(Zs, dtype=np.float32)
+    Xs = np.array(Xs)
+    Ys = np.array(Ys)
+    Zs = np.array(Zs)
 
-    # 7) Compute width / height in mm (axis-aligned in camera frame)
     width_mm = float(np.max(Xs) - np.min(Xs))
     height_mm = float(np.max(Ys) - np.min(Ys))
 
-    # Bounding box in ROI coords (cmin, rmin, cmax, rmax)
-    cmin = int(np.min(gap_indices[:,1])); cmax = int(np.max(gap_indices[:,1]))
-    rmin = int(np.min(gap_indices[:,0])); rmax = int(np.max(gap_indices[:,0]))
+    # Bounding box in ROI coordinates
+    cmin = int(np.min(gap_indices[:,1]))
+    cmax = int(np.max(gap_indices[:,1]))
+    rmin = int(np.min(gap_indices[:,0]))
+    rmax = int(np.max(gap_indices[:,0]))
 
-    result = {
-        "gap_mask": gap_mask_final,            # boolean mask in ROI coords
+    return {
+        "gap_mask": gap_mask_final,
         "width_mm": width_mm,
         "height_mm": height_mm,
         "bbox_roi": (cmin, rmin, cmax, rmax),
-        "points_3D": np.stack((Xs, Ys, Zs), axis=1)  # (N,3) in mm
+        "points_3D": np.stack((Xs, Ys, Zs), axis=1)
     }
-    return result
 
 # -----------------------------
 # Main processing loop (video)
@@ -311,8 +299,7 @@ while True:
         # -----------------------------
         # Use depth_out as already preprocessed (output of your p-tile + morphology steps)
         measurement = isolate_and_measure_gap_from_roi(depth_out, fx, fy, cx, cy,
-                                                       max_depth_mm=4000,  # clamp if you like
-                                                       min_component_area=20,
+                                                       min_component_area=2,
                                                        search_limit=50)
 
         if measurement is not None:
@@ -333,32 +320,25 @@ while True:
             cv2.addWeighted(overlay, 0.5, depth_vis, 0.5, 0, depth_vis)
 
             # Put text on frame
-            text = f"Gap W={width_mm:.1f} mm  H={height_mm:.1f} mm"
-            cv2.putText(depth_vis, text, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1, cv2.LINE_AA)
+            text = f"Gap: W={width_mm:.1f} mm H={height_mm:.1f} mm"
+            depth_vis_scaled = cv2.resize(depth_vis, (224, 172), interpolation=cv2.INTER_NEAREST)
+            cv2.putText(depth_vis_scaled, text, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1, cv2.LINE_AA)
             print(text)
         else:
             # optional: show no-gap message
-            cv2.putText(depth_vis, "No valid gap found", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,180,255), 1, cv2.LINE_AA)
-
-        # Original simple visualization loop preserved (kept comments unchanged)
-        for gap_start, gap_end in internal_gaps:
-            gap_region = depth_out[:, gap_start:gap_end]
-            gap_width_px = gap_end - gap_start
-            gap_height_px = np.sum(np.any(gap_region == 0, axis=1))
-            print(f"Detected Gap - Width: {gap_width_px}px, Height: {gap_height_px}px")
-            
-            # Draw rectangle over gap
-            cv2.rectangle(depth_vis, (gap_start, 0), (gap_end, depth_out.shape[0]), (0, 0, 255), 2)
+            depth_vis_scaled = cv2.resize(depth_vis, (224, 172), interpolation=cv2.INTER_NEAREST)
+            cv2.putText(depth_vis_scaled, "No valid gap found", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,180,255), 1, cv2.LINE_AA)
 
         # -----------------------------
-        # Display debug windows
+        # Display frames
         # -----------------------------
         cv2.imshow("Depth ROI Raw", depth_frame)
         cv2.imshow("Depth ROI Processed", depth_out)
-        cv2.imshow("Gap Detection", depth_vis)
+        output_depth_vis.write(depth_vis_scaled)
+        cv2.imshow("Gap Detection Scaled Image", depth_vis_scaled)
 
     # max_delay = max(rgb_delay, ir_delay, gray_delay, depth_delay)
-    if cv2.waitKey(100) & 0xFF == ord("q"):  # ESC to quit
+    if cv2.waitKey(150) & 0xFF == ord("q"):  # ESC to quit
         # self.get_logger().info("Q pressed. Exiting...")
         # sys.exit()
         print("Q pressed. Exiting...")
@@ -366,4 +346,5 @@ while True:
 
 # Cleanup
 if use_depth: depth_cap.release()
+output_depth_vis.release()
 cv2.destroyAllWindows()

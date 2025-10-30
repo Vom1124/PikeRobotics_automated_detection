@@ -44,7 +44,7 @@ def image_morph(img):
     img_eroded = cv.erode(img_filtered, kernel_morph, iterations=0)
     
     # Step 3: Dilation to enhance remaining features
-    img_morph = cv.dilate(img_eroded, kernel_morph, iterations=2)
+    img_morph = cv.dilate(img_eroded, kernel_morph, iterations=1)
     
     # Optional sharpening (commented out as it may amplify noise)
     # img_morph = cv.filter2D(img_morph, -1, kernel_sharpen)

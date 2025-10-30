@@ -1,1 +1,1 @@
-/home/vom/ros2_ws/PikeRobotics_automated_counting/src/automated_counter/setup.py
+/home/vom/ros2_ws/PikeRobotics_automated_detection/src/automated_counter/setup.py
