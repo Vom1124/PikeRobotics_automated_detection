@@ -1,0 +1,9 @@
+source;share/automated_counter/hook/pythonpath.ps1
+source;share/automated_counter/hook/pythonpath.dsv
+source;share/automated_counter/hook/pythonpath.sh
+source;share/automated_counter/hook/ament_prefix_path.ps1
+source;share/automated_counter/hook/ament_prefix_path.dsv
+source;share/automated_counter/hook/ament_prefix_path.sh
+source;../../build/automated_counter/share/automated_counter/hook/pythonpath_develop.ps1
+source;../../build/automated_counter/share/automated_counter/hook/pythonpath_develop.dsv
+source;../../build/automated_counter/share/automated_counter/hook/pythonpath_develop.sh

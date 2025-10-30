@@ -1,0 +1,3 @@
+[console_scripts]
+autocnt_pub = automated_counter.autocnt_main:main
+
